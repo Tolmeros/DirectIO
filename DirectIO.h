@@ -127,7 +127,7 @@ class InputPort {
         }
 
         void setup() {
-            // set port pin directions to output
+            // set port pin directions to input
             port::port_enable_inputs(mask);
         }
 
@@ -218,6 +218,200 @@ class OutputPort<port, 0, 8 * sizeof(port_data_t)> {
         operator u8() {
             return read();
         }
+};
+
+template <class port, u8 start_bit=0, u8 nbits=8>
+class BiDirectionalPort {
+    // A set of digital outputs which are contiguous and
+    // located in a single MCU I/O port. This abandons
+    // the pin number model for specifying I/O pins,
+    // in order to gain fast, simultaneous
+    // multi-bit reads and writes.
+    public:
+        BiDirectionalPort() {
+            setup();
+        }
+
+        void setup() {
+            // set port pin directions to input
+            setInput();
+        }
+
+        void setInput() {
+            port::port_enable_inputs(mask);
+        }
+
+        void setOutput() {
+            port::port_enable_outputs(mask);
+        }
+
+        void write(port_data_t value) {
+            // set port pin directions to output
+            setOutput();
+
+            atomic {
+                // read-modify-write cycle
+                port_data_t v = port::port_output_read();
+                port_data_t shifted = value << start_bit;
+                v |= shifted & mask;
+                v &= (shifted | ~mask);
+                port::port_output_write(v);
+            };
+        }
+
+        BiDirectionalPort& operator =(port_data_t value) {
+            write(value);
+            return *this;
+        }
+
+        port_data_t read() {
+            // mask to select bits of interest, then shift so
+            // that output can be treated as normal integers.
+            return (port::port_output_read() & mask) >> start_bit;
+        }
+
+        operator port_data_t() {
+            return read();
+        }
+
+    private:
+        static const port_data_t mask = ((port_data_t(1) << nbits) - 1) << start_bit;
+};
+
+template <class port_0, class port_1, u8 start_bit_0=0, u8 nbits_0=8, u8 start_bit_1=0, u8 nbits_1=8>
+class BiDirectionalPortDouble {
+    // A set of digital outputs which are contiguous and
+    // located in a single MCU I/O port. This abandons
+    // the pin number model for specifying I/O pins,
+    // in order to gain fast, simultaneous
+    // multi-bit reads and writes.
+    public:
+        BiDirectionalPortDouble() {
+            setup();
+        }
+
+        void setup() {
+            // set port pin directions to input
+            setInput();
+        }
+
+        void setInput() {
+            port_0::port_enable_inputs(mask_0);
+            port_1::port_enable_inputs(mask_1);
+        }
+
+        void setOutput() {
+            port_0::port_enable_outputs(mask_0);
+            port_1::port_enable_outputs(mask_1);
+        }
+
+        void write(u16 value) {
+            // set port pin directions to output
+            setOutput();
+
+            atomic {
+                // read-modify-write cycle
+                port_data_t v = port_0::port_output_read();
+                port_data_t shifted = (value & mask_0) << start_bit_0;
+                v |= shifted & mask_0;
+                v &= (shifted | ~mask_0);
+                port_0::port_output_write(v);
+
+                v = port_1::port_output_read();
+                shifted = ( (value >> nbits_0) & mask_1) << start_bit_1;
+                v |= shifted & mask_1;
+                v &= (shifted | ~mask_1);
+                port_1::port_output_write(v);
+            };
+
+        }
+
+        BiDirectionalPortDouble& operator =(u16 value) {
+            write(value);
+            return *this;
+        }
+
+        u16 read() {
+            // mask to select bits of interest, then shift so
+            // that output can be treated as normal integers.
+            return (((port_1::port_output_read() & mask_1) >> start_bit_1) << nbits_0) | ((port_0::port_output_read() & mask_0) >> start_bit_0);
+        }
+
+        operator u16() {
+            return read();
+        }
+
+    private:
+        static const port_data_t mask_0 = ((port_data_t(1) << nbits_0) - 1) << start_bit_0;
+        static const port_data_t mask_1 = ((port_data_t(1) << nbits_1) - 1) << start_bit_1;
+};
+
+template <class port_0, class port_1, u8 start_bit_0=0, u8 nbits_0=8, u8 start_bit_1=0, u8 nbits_1=8>
+class BiDirectionalPortDouble8bit {
+    // A set of digital outputs which are contiguous and
+    // located in a single MCU I/O port. This abandons
+    // the pin number model for specifying I/O pins,
+    // in order to gain fast, simultaneous
+    // multi-bit reads and writes.
+    public:
+        BiDirectionalPortDouble() {
+            setup();
+        }
+
+        void setup() {
+            // set port pin directions to input
+            setInput();
+        }
+
+        void setInput() {
+            port_0::port_enable_inputs(mask_0);
+            port_1::port_enable_inputs(mask_1);
+        }
+
+        void setOutput() {
+            port_0::port_enable_outputs(mask_0);
+            port_1::port_enable_outputs(mask_1);
+        }
+
+        void write(port_data_t value) {
+            // set port pin directions to output
+            setOutput();
+
+            atomic {
+                // read-modify-write cycle
+                port_data_t v = port_0::port_output_read();
+                port_data_t shifted = (value & mask_0) << start_bit_0;
+                v |= shifted & mask_0;
+                v &= (shifted | ~mask_0);
+                port_0::port_output_write(v);
+
+                v = port_1::port_output_read();
+                shifted = ( (value >> nbits_0) & mask_1) << start_bit_1;
+                v |= shifted & mask_1;
+                v &= (shifted | ~mask_1);
+                port_1::port_output_write(v);
+            };
+
+        }
+
+        BiDirectionalPortDouble8bit& operator =(port_data_t value) {
+            write(value);
+            return *this;
+        }
+
+        port_data_t read() {
+            // mask to select bits of interest, then shift so
+            // that output can be treated as normal integers.
+            return (((port_1::port_output_read() & mask_1) >> start_bit_1) << nbits_0) | ((port_0::port_output_read() & mask_0) >> start_bit_0);
+        }
+
+        operator port_data_t() {
+            return read();
+        }
+
+    private:
+        static const port_data_t mask_0 = ((port_data_t(1) << nbits_0) - 1) << start_bit_0;
+        static const port_data_t mask_1 = ((port_data_t(1) << nbits_1) - 1) << start_bit_1;
 };
 
 #else // DIRECTIO_FALLBACK
